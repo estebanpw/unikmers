@@ -28,6 +28,7 @@ USAGE       Usage is described by calling ./unikmers --help
 uint64_t custom_kmer = 32; // Defined as external in structs.h
 uint64_t diffuse_z = 4; // Defined as external in structs.h
 
+
 // To reduce overhead in recursion
 uint64_t query_l, db_l;
 char * seq_x, * seq_y;
@@ -391,7 +392,7 @@ void transform_tree_to_hits(AVLTree * root, uint64_t max_unicity, std::list<Alig
     if(root != NULL){
 
         transform_tree_to_hits(root->left, max_unicity, list_forward, list_reverse);
-        if(root->count_x != 0 && root->count_y != 0 && (root->count_x + root->count_y) <= max_unicity) {
+        if(root->count_x != 0 && root->count_y != 0 && ( (root->count_x + root->count_y) <= max_unicity || max_unicity == 0 ) ) {
            
             llpos * aux_x = root->next_in_x;
             while(aux_x != NULL){ 
@@ -635,7 +636,7 @@ void init_args(int argc, char ** av, FILE ** query, FILE ** database, FILE ** ou
             fprintf(stdout, "           unikmers -query [query] -db [database] -out [outfile]\n");
             fprintf(stdout, "OPTIONAL:\n");
             fprintf(stdout, "           -kmer       [Integer:   k>1 (default 32)]\n");
-            fprintf(stdout, "           -unique     [Integer:   u>1 (default 2)]\n");
+            fprintf(stdout, "           -unique     [Integer:   u>=0 (default 2, use u=0 for no uniqueness)]\n");
             fprintf(stdout, "           -len        [Integer:   l>0 (default 50)]\n");
             fprintf(stdout, "           -sim        [Float:     0<f<1 (default 0.75)]\n");
             fprintf(stdout, "           -out        [File path]\n");
@@ -644,34 +645,46 @@ void init_args(int argc, char ** av, FILE ** query, FILE ** database, FILE ** ou
             fprintf(stdout, "PLEASE NOTICE: The reverse complementary is calculated for the QUERY.\n");
             exit(1);
         }
-        if(strcmp(av[pNum], "-query") == 0){
+        else if(strcmp(av[pNum], "-query") == 0){
             *query = fopen64(av[pNum+1], "rt");
             if(query==NULL) terror("Could not open query file");
+            pNum+=2;
         }
-        if(strcmp(av[pNum], "-db") == 0){
+        else if(strcmp(av[pNum], "-db") == 0){
             *database = fopen64(av[pNum+1], "rt");
             if(database==NULL) terror("Could not open database file");
+            pNum+=2;
         }
-        if(strcmp(av[pNum], "-out") == 0){
+        else if(strcmp(av[pNum], "-out") == 0){
             *out_database = fopen(av[pNum+1], "wt");
             if(out_database==NULL) terror("Could not open output database file");
+            pNum+=2;
         }
-        if(strcmp(av[pNum], "-kmer") == 0){
+        else if(strcmp(av[pNum], "-kmer") == 0){
             *custom_kmer = (uint64_t) atoi(av[pNum+1]);
             if(*custom_kmer < BYTES_IN_MER) terror("K-mer size must be larger than 4");
             if(*custom_kmer % BYTES_IN_MER != 0) terror("K-mer size must be a multiple of 4");
+            pNum+=2;
         }
-        if(strcmp(av[pNum], "-len") == 0){
+        else if(strcmp(av[pNum], "-len") == 0){
             *min_frag_len = (uint64_t) atoi(av[pNum+1]);
+            pNum+=2;
         }
-        if(strcmp(av[pNum], "-sim") == 0){
+        else if(strcmp(av[pNum], "-sim") == 0){
             *min_frag_sim = (uint64_t) atof(av[pNum+1]);
+            pNum+=2;
         }
-        if(strcmp(av[pNum], "-unique") == 0){
+        else if(strcmp(av[pNum], "-unique") == 0){
             *max_unicity = (uint64_t) atoi(av[pNum+1]);
+            pNum+=2;
         }
+        else if(pNum > 0){
+            fprintf(stderr, "Unrecognized option %s\n", av[pNum]);
+            exit(-1);
+        }
+
+        if(pNum < 1) ++pNum;
         
-        pNum++;
     }
     
     if(*query==NULL || *database==NULL || *out_database==NULL) terror("A query, database and output file is required");
